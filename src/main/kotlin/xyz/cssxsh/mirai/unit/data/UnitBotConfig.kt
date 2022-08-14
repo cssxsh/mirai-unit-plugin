@@ -1,8 +1,6 @@
 package xyz.cssxsh.mirai.unit.data
 
 import net.mamoe.mirai.console.data.*
-import net.mamoe.mirai.console.data.PluginDataExtensions.mapKeys
-import net.mamoe.mirai.console.permission.*
 import xyz.cssxsh.baidu.unit.*
 
 public object UnitBotConfig : ReadOnlyPluginConfig("UnitBotConfig"), BaiduUnitConfig {
@@ -22,13 +20,7 @@ public object UnitBotConfig : ReadOnlyPluginConfig("UnitBotConfig"), BaiduUnitCo
     @ValueDescription("百度AI客户端 SECRET_KEY")
     override val secretKey: String by value(System.getProperty("xyz.cssxsh.mirai.tts.secret", ""))
 
-    @ValueName("chat")
-    @ValueDescription("Unit API URL")
-    override val chat: String by value(BaiduUnitConfig.Chat.DEV)
-
-    @ValueName("service")
-    @ValueDescription("Unit Bot service")
-    public val service: Map<PermitteeId, String> by value<Map<String, String>>()
-        .mapKeys(AbstractPermitteeId.Companion::parseFromString, PermitteeId::asString)
-
+    @ValueName("host")
+    @ValueDescription("Unit API HOST")
+    override val host: String by value(BaiduUnitConfig.HOST.DEV)
 }

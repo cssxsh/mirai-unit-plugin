@@ -7,12 +7,12 @@ plugins {
 }
 
 group = "xyz.cssxsh.mirai"
-version = "1.0.0-dev-1"
+version = "1.0.0-dev-2"
 
 mavenCentralPublish {
     useCentralS01()
     singleDevGithubProject("cssxsh", "mirai-tts-plugin")
-    licenseFromGitHubProject("AGPL-3.0", "master")
+    licenseFromGitHubProject("AGPL-3.0")
     workingDir = System.getenv("PUBLICATION_TEMP")?.let { file(it).resolve(projectName) }
         ?: project.buildDir.resolve("publishing-tmp")
     publication {
@@ -26,7 +26,7 @@ repositories {
 }
 
 dependencies {
-    api("xyz.cssxsh.baidu:baidu-unit:3.1.6") {
+    api("xyz.cssxsh.baidu:baidu-unit:3.2.0") {
         exclude(group = "org.jetbrains.kotlin")
         exclude(group = "org.jetbrains.kotlinx")
         exclude(group = "org.slf4j")

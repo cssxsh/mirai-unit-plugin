@@ -1,18 +1,17 @@
 package xyz.cssxsh.mirai.unit
 
 import kotlinx.coroutines.*
-import net.mamoe.mirai.console.command.CommandSender
+import net.mamoe.mirai.console.command.*
 import net.mamoe.mirai.console.command.CommandSender.Companion.toCommandSender
 import net.mamoe.mirai.console.permission.PermitteeId.Companion.hasChild
 import net.mamoe.mirai.console.util.ContactUtils.render
 import net.mamoe.mirai.event.*
 import net.mamoe.mirai.event.events.*
 import net.mamoe.mirai.message.*
-import net.mamoe.mirai.message.data.At
+import net.mamoe.mirai.message.data.*
 import net.mamoe.mirai.utils.*
 import xyz.cssxsh.baidu.unit.*
-import xyz.cssxsh.baidu.unit.data.Action
-import xyz.cssxsh.baidu.unit.data.ActionType
+import xyz.cssxsh.baidu.unit.data.*
 import xyz.cssxsh.mirai.unit.data.*
 import kotlin.coroutines.*
 
@@ -32,7 +31,7 @@ public object MiraiUnitBot : BaiduUnitClient(config = UnitBotConfig), ListenerHo
         } catch (_: Throwable) {
             CoroutineExceptionHandler { _, throwable ->
                 if (throwable.unwrapCancellationException() !is CancellationException) {
-                    logger.error("Exception in coroutine BaiduAipContentCensor", throwable)
+                    logger.error("Exception in coroutine MiraiUnitBot", throwable)
                 }
             }.childScopeContext("MiraiUnitBot")
         }
@@ -53,20 +52,23 @@ public object MiraiUnitBot : BaiduUnitClient(config = UnitBotConfig), ListenerHo
 
     @EventHandler
     public fun MessageEvent.push() {
+        if (this is MessageSyncEvent) return
         val target = toCommandSender()
-        val serviceId = with(UnitBotConfig) {
+        val serviceId = with(UnitBotService) {
             for ((id, serviceId) in service) {
                 if (target.permitteeId.hasChild(id)) return@with serviceId
             }
             return@push
         }
         launch {
-            val content = message.contentToString()
+            val content = message.findIsInstance<PlainText>()?.content ?: return@launch
+
             val data = query(text = content, terminalId = sender.render(), serviceId = serviceId)
 
             for (response in data.responses) {
                 if (response.status != 0) continue
                 for (action in response.actions) {
+                    if (action.confidence < -1.5) continue
                     target.push(action = action) ?: continue
                     //
                     return@launch
