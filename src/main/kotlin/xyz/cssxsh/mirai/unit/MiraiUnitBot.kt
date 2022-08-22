@@ -1,5 +1,6 @@
 package xyz.cssxsh.mirai.unit
 
+import io.ktor.client.utils.*
 import kotlinx.coroutines.*
 import net.mamoe.mirai.console.command.*
 import net.mamoe.mirai.console.command.CommandSender.Companion.toCommandSender
@@ -27,13 +28,13 @@ public object MiraiUnitBot : BaiduUnitClient(config = UnitBotConfig), ListenerHo
 
     override val coroutineContext: CoroutineContext by lazy {
         try {
-            MiraiUnitPlugin.childScopeContext("MiraiUnitBot")
+            MiraiUnitPlugin.coroutineContext + CoroutineName("MiraiUnitBot")
         } catch (_: Throwable) {
             CoroutineExceptionHandler { _, throwable ->
                 if (throwable.unwrapCancellationException() !is CancellationException) {
                     logger.error("Exception in coroutine MiraiUnitBot", throwable)
                 }
-            }.childScopeContext("MiraiUnitBot")
+            } + CoroutineName("MiraiUnitBot")
         }
     }
 
