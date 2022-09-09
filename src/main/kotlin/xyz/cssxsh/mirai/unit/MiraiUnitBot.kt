@@ -4,12 +4,11 @@ import io.ktor.client.utils.*
 import kotlinx.coroutines.*
 import net.mamoe.mirai.console.command.*
 import net.mamoe.mirai.console.command.CommandSender.Companion.toCommandSender
-import net.mamoe.mirai.console.permission.PermitteeId.Companion.hasChild
-import net.mamoe.mirai.console.util.ContactUtils.render
 import net.mamoe.mirai.event.*
 import net.mamoe.mirai.event.events.*
 import net.mamoe.mirai.message.*
 import net.mamoe.mirai.message.data.*
+import net.mamoe.mirai.message.data.MessageSource.Key.quote
 import net.mamoe.mirai.utils.*
 import xyz.cssxsh.baidu.unit.*
 import xyz.cssxsh.baidu.unit.data.*
@@ -21,7 +20,7 @@ public object MiraiUnitBot : BaiduUnitClient(config = UnitBotConfig), ListenerHo
     private val logger: MiraiLogger by lazy {
         try {
             MiraiUnitPlugin.logger
-        } catch (_: Throwable) {
+        } catch (_: ExceptionInInitializerError) {
             MiraiLogger.Factory.create(this::class, "MiraiUnitBot")
         }
     }
@@ -29,19 +28,22 @@ public object MiraiUnitBot : BaiduUnitClient(config = UnitBotConfig), ListenerHo
     override val coroutineContext: CoroutineContext by lazy {
         try {
             MiraiUnitPlugin.coroutineContext + CoroutineName("MiraiUnitBot")
-        } catch (_: Throwable) {
-            CoroutineExceptionHandler { _, throwable ->
+        } catch (_: ExceptionInInitializerError) {
+            CoroutineExceptionHandler { context, throwable ->
                 if (throwable.unwrapCancellationException() !is CancellationException) {
-                    logger.error("Exception in coroutine MiraiUnitBot", throwable)
+                    logger.error("Exception in $context", throwable)
                 }
             } + CoroutineName("MiraiUnitBot")
         }
     }
 
+    private val switch: Regex = """Unit在吗""".toRegex()
+
     public suspend fun CommandSender.push(action: Action): MessageReceipt<*>? {
+        val prefix = user?.let { At(it) } ?: emptyMessageChain()
         return when (action.type) {
-            ActionType.clarify -> sendMessage(At(user?.id ?: 12345) + action.say)
-            ActionType.satisfy -> sendMessage(At(user?.id ?: 12345) + action.say)
+            ActionType.clarify -> sendMessage(prefix + action.say)
+            ActionType.satisfy -> sendMessage(prefix + action.say)
             ActionType.guide -> sendMessage(action.say)
             ActionType.faqguide -> sendMessage(action.say)
             ActionType.understood -> null
@@ -54,27 +56,39 @@ public object MiraiUnitBot : BaiduUnitClient(config = UnitBotConfig), ListenerHo
     @EventHandler
     public fun MessageEvent.push() {
         if (this is MessageSyncEvent) return
-        val target = toCommandSender()
-        val serviceId = with(UnitBotService) {
-            for ((id, serviceId) in service) {
-                if (target.permitteeId.hasChild(id)) return@with serviceId
-            }
-            return@push
-        }
-        launch {
-            val content = message.findIsInstance<PlainText>()?.content ?: return@launch
+        val content = message.findIsInstance<PlainText>()?.content ?: return
+        if ((content matches switch).not()) return
+        val serviceId = UnitBotService.service[subject] ?: return
+        val terminalId = UnitBotService.serialize(sender)
+        if (terminalId in sessions) return
 
-            val data = query(text = content, terminalId = sender.render(), serviceId = serviceId)
+        launch(CoroutineName(terminalId)) {
+            val target = toCommandSender()
+            val channel = globalEventChannel()
+            target.sendMessage(message = message.quote() + "$serviceId 为你服务")
 
-            for (response in data.responses) {
-                if (response.status != 0) continue
-                for (action in response.actions) {
-                    if (action.confidence < -1.5) continue
-                    target.push(action = action) ?: continue
-                    //
-                    return@launch
+            while (isActive) {
+                val text = channel.syncFromEvent { event: MessageEvent ->
+                    if (event.sender == target.user) {
+                        event.message.findIsInstance<PlainText>()?.content
+                    } else {
+                        null
+                    }
+                }
+                if ("." == text) break
+
+                val data = query(text = text, terminalId = terminalId, serviceId = serviceId)
+
+                loop@ for (response in data.responses) {
+                    if (response.status != 0) continue
+                    for (action in response.actions) {
+                        target.push(action = action) ?: continue
+                        break@loop
+                    }
                 }
             }
+        }.invokeOnCompletion {
+            sessions.remove(terminalId)
         }
     }
 }
